@@ -2,6 +2,7 @@ package services
 
 import (
 	"net/http"
+	"path"
 	"strings"
 	"ziwex/db"
 	"ziwex/dtos"
@@ -51,9 +52,10 @@ func UploadFile(d dtos.UploadFile) types.Response {
 	dbCtx, dbCancel := utils.GetDatabaseContext()
 	defer dbCancel()
 
+	filename := d.Filename + path.Ext(d.File.Filename)
 	dbErr := db.Poll.QueryRow(dbCtx, `--sql
 		INSERT INTO files (filename, file_id, hash_md5, content_type) VALUES ($1, $2, $3::UUID, $4);
-	`, d.File.Filename, objectName.String(), info.ETag, contentType).Scan()
+	`, filename, objectName.String(), info.ETag, contentType).Scan()
 
 	//TODO: revert file insert
 	if dbErr != nil && dbErr != pgx.ErrNoRows {
