@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS files;
+DELETE FROM files WHERE id = 1;

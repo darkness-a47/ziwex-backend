@@ -16,3 +16,13 @@ type GetFiles struct {
 	Page        int     `query:"page" validate:"required"`
 	DataPerPage int     `query:"data_per_page" validate:"required"`
 }
+
+type UpdateFile struct {
+	Id       int     `form:"id" validate:"required,number"`
+	Filename *string `form:"filename"`
+	File     *multipart.FileHeader
+}
+
+type DeleteFile struct {
+	Id int `query:"id" validate:"required,number"`
+}
