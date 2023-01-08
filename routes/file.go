@@ -9,4 +9,5 @@ import (
 func FileRoutesInit(g *echo.Group) {
 	g.POST("/uploadFile", controllers.UploadFile)
 	g.GET("/serve/:file_id", controllers.ServeFile)
+	g.GET("/files", controllers.GetFiles)
 }

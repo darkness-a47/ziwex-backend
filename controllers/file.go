@@ -42,3 +42,15 @@ func ServeFile(c echo.Context) error {
 	res := services.ServeFile(d)
 	return res.SendResponse(c)
 }
+
+func GetFiles(c echo.Context) error {
+	d := dtos.GetFiles{}
+	if err := c.Bind(&d); err != nil {
+		return err
+	}
+	if err := c.Validate(&d); err != nil {
+		return err
+	}
+	r := services.GetFiles(d)
+	return r.SendResponse(c)
+}

@@ -12,7 +12,7 @@ type ServeFile struct {
 }
 
 type GetFiles struct {
-	Filename    string `query:"filename" validate:"required"`
-	Page        int    `query:"page" validate:"required"`
-	DataPerPage int    `query:"data_per_page" validate:"required"`
+	Filename    *string `query:"filename" validate:"required"`
+	Page        int     `query:"page" validate:"required"`
+	DataPerPage int     `query:"data_per_page" validate:"required"`
 }

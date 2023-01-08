@@ -2,6 +2,7 @@ package services
 
 import (
 	"net/http"
+	"strings"
 	"ziwex/db"
 	"ziwex/dtos"
 	"ziwex/minioClient"
@@ -105,6 +106,38 @@ func ServeFile(d dtos.ServeFile) types.Response {
 
 func GetFiles(d dtos.GetFiles) types.Response {
 	r := &jsonResponse.Response{}
+
+	ctx, cancel := utils.GetDatabaseContext()
+	defer cancel()
+
+	skip := (d.Page - 1) * d.DataPerPage
+	rows, err := db.Poll.Query(ctx, `--sql
+		SELECT id, filename, file_id, content_type, hash_md5, COUNT(*) OVER() AS total FROM files
+		WHERE (filename LIKE '%' || $1 || '%') OFFSET $2 LIMIT $3;
+	`, *d.Filename, skip, d.DataPerPage)
+	if err != nil {
+		r.Error(err)
+		return r
+	}
+
+	var totalRows int
+	files := make([]models.File, 0)
+	for rows.Next() {
+		f := models.File{}
+		err := rows.Scan(&f.Id, &f.Filename, &f.FileId, &f.ContentType, &f.HashMd5, &totalRows)
+		if err != nil {
+			r.Error(err)
+			return r
+		}
+		f.HashMd5 = strings.ReplaceAll(f.HashMd5, "-", "")
+		files = append(files, f)
+	}
+
+	r.Write(http.StatusOK, jsonResponse.Json{
+		"message":    "ok",
+		"files":      files,
+		"total_rows": totalRows,
+	})
 
 	return r
 }

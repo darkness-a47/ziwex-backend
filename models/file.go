@@ -1,6 +1,7 @@
 package models
 
 type File struct {
+	Id          string `json:"id,omitempty"`
 	Filename    string `json:"filename,omitempty"`
 	FileId      string `json:"file_id,omitempty"`
 	HashMd5     string `json:"hash_md5,omitempty"`
