@@ -3,7 +3,7 @@ package middlewares
 import (
 	"net/http"
 	"strings"
-	"ziwex/types"
+	"ziwex/types/jsonResponse"
 	"ziwex/utils"
 
 	"github.com/labstack/echo/v4"
@@ -14,8 +14,8 @@ func AuthorizeAccess(accessLevels ...string) echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			bearer := strings.Split(c.Request().Header.Get("Auth"), " ")
 
-			r := types.Response{}
-			r.Write(http.StatusUnauthorized, types.JsonR{
+			r := jsonResponse.Response{}
+			r.Write(http.StatusUnauthorized, jsonResponse.Json{
 				"message": "unauthorized",
 			})
 

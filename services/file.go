@@ -1,0 +1,110 @@
+package services
+
+import (
+	"net/http"
+	"ziwex/db"
+	"ziwex/dtos"
+	"ziwex/minioClient"
+	"ziwex/models"
+	"ziwex/types"
+	"ziwex/types/fileResponse"
+	"ziwex/types/jsonResponse"
+	"ziwex/utils"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/minio/minio-go/v7"
+)
+
+func UploadFile(d dtos.UploadFile) types.Response {
+	r := &jsonResponse.Response{}
+	file, fileOpenErr := d.File.Open()
+	if fileOpenErr != nil {
+		r.Error(fileOpenErr)
+		return r
+	}
+	defer file.Close()
+
+	objectName, uuidErr := uuid.NewRandom()
+	if uuidErr != nil {
+		r.Error(uuidErr)
+		return r
+	}
+
+	contentType, contentTypeErr := utils.GetFileContentType(file)
+	if contentTypeErr != nil {
+		r.Error(contentTypeErr)
+		return r
+	}
+
+	minioCtx, minioCancel := utils.GetMinioPutContext()
+	defer minioCancel()
+	info, minioErr := minioClient.Conn.PutObject(minioCtx, minioClient.ImageBucket, objectName.String(),
+		file, d.File.Size, minio.PutObjectOptions{ContentType: contentType})
+	if minioErr != nil {
+		r.Error(minioErr)
+		return r
+	}
+
+	dbCtx, dbCancel := utils.GetDatabaseContext()
+	defer dbCancel()
+
+	dbErr := db.Poll.QueryRow(dbCtx, `--sql
+		INSERT INTO files (filename, file_id, hash_md5, content_type) VALUES ($1, $2, $3::UUID, $4);
+	`, d.File.Filename, objectName.String(), info.ETag, contentType).Scan()
+
+	//TODO: revert file insert
+	if dbErr != nil && dbErr != pgx.ErrNoRows {
+		r.Error(dbErr)
+		return r
+	}
+
+	r.Write(http.StatusCreated, jsonResponse.Json{
+		"message": "image created",
+		"id":      objectName,
+	})
+	return r
+}
+
+func ServeFile(d dtos.ServeFile) types.Response {
+	r := &jsonResponse.Response{}
+	dbCtx, dbCancel := utils.GetDatabaseContext()
+	defer dbCancel()
+
+	dbFile := models.File{}
+	dbErr := db.Poll.QueryRow(dbCtx, `--sql
+		SELECT filename, content_type FROM files WHERE file_id = $1;
+	`, d.FileId).Scan(&dbFile.Filename, &dbFile.ContentType)
+	if dbErr != nil {
+		if dbErr == pgx.ErrNoRows {
+			r.Write(http.StatusNotFound, jsonResponse.Json{
+				"message": "file not found",
+			})
+			return r
+		}
+		r.Error(dbErr)
+		return r
+	}
+
+	minioCtx, minioCancel := utils.GetMinioGetContext()
+	file, minioErr := minioClient.Conn.GetObject(minioCtx, minioClient.ImageBucket, d.FileId, minio.GetObjectOptions{})
+	if minioErr != nil {
+		r.Error(minioErr)
+		return r
+	}
+
+	rf := &fileResponse.Response{}
+	rf.Write(http.StatusOK, &fileResponse.File{
+		File:           file,
+		ContentType:    dbFile.ContentType,
+		CancelFunction: minioCancel,
+	})
+
+	return rf
+}
+
+func GetFiles(d dtos.GetFiles) types.Response {
+	r := &jsonResponse.Response{}
+
+	return r
+}

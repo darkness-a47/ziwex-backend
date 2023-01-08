@@ -3,6 +3,7 @@ package main
 import (
 	"ziwex/db"
 	"ziwex/etc"
+	"ziwex/minioClient"
 	"ziwex/utils"
 
 	"github.com/go-playground/validator/v10"
@@ -20,6 +21,8 @@ func main() {
 
 	close := db.ConnetionInit()
 	defer close()
+
+	minioClient.InitConnection()
 
 	etc.RouterInit(e)
 	utils.JwtInit()

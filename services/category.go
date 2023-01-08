@@ -5,14 +5,14 @@ import (
 	"ziwex/db"
 	"ziwex/dtos"
 	"ziwex/models"
-	"ziwex/types"
+	"ziwex/types/jsonResponse"
 	"ziwex/utils"
 
 	"github.com/jackc/pgx/v5"
 )
 
-func CreateCategory(d dtos.CreateCategory) types.Response {
-	res := types.Response{}
+func CreateCategory(d dtos.CreateCategory) jsonResponse.Response {
+	res := jsonResponse.Response{}
 
 	ctx, cancel := utils.GetDatabaseContext()
 	defer cancel()
@@ -26,7 +26,7 @@ func CreateCategory(d dtos.CreateCategory) types.Response {
 		return res
 	}
 
-	res.Write(http.StatusCreated, types.JsonR{
+	res.Write(http.StatusCreated, jsonResponse.Json{
 		"message":     "category created",
 		"category_id": cat.Id,
 	})
@@ -34,8 +34,8 @@ func CreateCategory(d dtos.CreateCategory) types.Response {
 	return res
 }
 
-func GetCategories(d dtos.GetCategories) types.Response {
-	res := types.Response{}
+func GetCategories(d dtos.GetCategories) jsonResponse.Response {
+	res := jsonResponse.Response{}
 
 	categories := make([]models.Category, 0)
 
@@ -72,7 +72,7 @@ func GetCategories(d dtos.GetCategories) types.Response {
 		categories = append(categories, c)
 	}
 
-	res.Write(http.StatusOK, types.JsonR{
+	res.Write(http.StatusOK, jsonResponse.Json{
 		"message":    "ok",
 		"categories": categories,
 		"total_rows": totalRows,

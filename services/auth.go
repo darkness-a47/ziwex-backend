@@ -5,14 +5,14 @@ import (
 	"ziwex/db"
 	"ziwex/dtos"
 	"ziwex/models"
-	"ziwex/types"
+	"ziwex/types/jsonResponse"
 	"ziwex/utils"
 
 	"github.com/jackc/pgx/v5"
 )
 
-func AuthAdminRegister(user dtos.AuthAdminRegister) types.Response {
-	res := types.Response{}
+func AuthAdminRegister(user dtos.AuthAdminRegister) jsonResponse.Response {
+	res := jsonResponse.Response{}
 
 	//check exists
 	ctx, cancel := utils.GetDatabaseContext()
@@ -35,7 +35,7 @@ func AuthAdminRegister(user dtos.AuthAdminRegister) types.Response {
 		if admin.Username == user.Username {
 			e = append(e, "Username exists")
 		}
-		res.Write(http.StatusConflict, types.JsonR{
+		res.Write(http.StatusConflict, jsonResponse.Json{
 			"message": e,
 		})
 		return res
@@ -60,15 +60,15 @@ func AuthAdminRegister(user dtos.AuthAdminRegister) types.Response {
 		return res
 	}
 
-	res.Write(http.StatusCreated, types.JsonR{
+	res.Write(http.StatusCreated, jsonResponse.Json{
 		"message": "User Created",
 	})
 
 	return res
 }
 
-func AuthAdminLogin(user dtos.AuthAdminLogin) types.Response {
-	res := types.Response{}
+func AuthAdminLogin(user dtos.AuthAdminLogin) jsonResponse.Response {
+	res := jsonResponse.Response{}
 
 	userDb := models.AuthAdmin{}
 	ctx, cancel := utils.GetDatabaseContext()
@@ -79,7 +79,7 @@ func AuthAdminLogin(user dtos.AuthAdminLogin) types.Response {
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			res.Write(http.StatusUnauthorized, types.JsonR{
+			res.Write(http.StatusUnauthorized, jsonResponse.Json{
 				"message": "unauthorized",
 			})
 			return res
@@ -89,7 +89,7 @@ func AuthAdminLogin(user dtos.AuthAdminLogin) types.Response {
 	}
 
 	if !utils.CompareHashPassword(userDb.Password, user.Password) {
-		res.Write(http.StatusUnauthorized, types.JsonR{
+		res.Write(http.StatusUnauthorized, jsonResponse.Json{
 			"message": "unauthorized",
 		})
 		return res
@@ -101,7 +101,7 @@ func AuthAdminLogin(user dtos.AuthAdminLogin) types.Response {
 		return res
 	}
 
-	res.Write(http.StatusCreated, types.JsonR{
+	res.Write(http.StatusCreated, jsonResponse.Json{
 		"message": "Login Successful",
 		"token":   token,
 	})
