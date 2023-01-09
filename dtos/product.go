@@ -18,3 +18,9 @@ type CreateProduct struct {
 	Images              []int             `json:"images" validate:"required,gte=1"`
 	MainImageIndex      *int              `json:"main_image_index" validate:"required,min=0"`
 }
+
+type GetProductsSummery struct {
+	CategoryId  *int `query:"category_id"`
+	Page        int  `query:"page" validate:"required"`
+	DataPerPage int  `query:"data_per_page" validate:"required"`
+}

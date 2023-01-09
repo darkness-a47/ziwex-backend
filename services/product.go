@@ -1,15 +1,16 @@
 package services
 
 import (
-	"fmt"
 	"net/http"
 	"ziwex/db"
 	"ziwex/dtos"
+	"ziwex/models"
 	"ziwex/types"
 	"ziwex/types/jsonResponse"
 	"ziwex/utils"
 
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/exp/slices"
 )
 
 func CreateProduct(d dtos.CreateProduct) types.Response {
@@ -67,7 +68,8 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 				INSERT INTO product_categories(product_id, category_id)
 				VALUES ($1, $2)
 			`, productId, cat).Scan()
-
+			txFinalCtx, txFinalCancel := utils.GetDatabaseContext()
+			defer txFinalCancel()
 			if categoriesErr != nil && categoriesErr != pgx.ErrNoRows {
 				_ = tx.Rollback(txFinalCtx)
 				r.Write(http.StatusBadRequest, jsonResponse.Json{
@@ -88,7 +90,6 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 				VALUES ($1, $2)
 			`, productId, rp).Scan()
 
-			fmt.Println(relatedProductsErr)
 			if relatedProductsErr != nil && relatedProductsErr != pgx.ErrNoRows {
 				_ = tx.Rollback(txFinalCtx)
 				r.Write(http.StatusBadRequest, jsonResponse.Json{
@@ -132,5 +133,73 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 		"message": "ok",
 	})
 
+	return r
+}
+
+func GetProductsSummery(d dtos.GetProductsSummery) types.Response {
+	r := &jsonResponse.Response{}
+
+	ctx, cancel := utils.GetDatabaseContext()
+	defer cancel()
+
+	var rows pgx.Rows
+	var err error
+	skip := (d.Page - 1) * d.DataPerPage
+	if d.CategoryId != nil {
+		rows, err = db.Poll.Query(ctx, `--sql
+			WITH prod AS (
+				SELECT p.id, p.url, p.title, p.price, p.main_image_index, COUNT(*) OVER() AS total_rows
+				FROM products p
+				LEFT JOIN product_categories pc ON pc.product_id = p.id
+				WHERE pc.category_id = $1 
+				ORDER BY id DESC OFFSET $2 LIMIT $3
+			) 
+			SELECT prod.*, f.file_id FROM prod
+			LEFT JOIN product_images pi ON pi.product_id = prod.id
+			LEFT JOIN files f ON f.id = pi.image_id;
+		`, *d.CategoryId, skip, d.DataPerPage)
+	} else {
+		rows, err = db.Poll.Query(ctx, `--sql
+			WITH prod AS (
+				SELECT id, url, title, price, main_image_index, COUNT(*) OVER() AS total_rows
+				FROM products ORDER BY id DESC OFFSET $1 LIMIT $2
+			) 
+			SELECT prod.*, f.file_id FROM prod
+			LEFT JOIN product_images pi ON pi.product_id = prod.id
+			LEFT JOIN files f ON f.id = pi.image_id;
+		`, skip, d.DataPerPage)
+	}
+	if err != nil {
+		r.Error(err)
+		return r
+	}
+
+	var totalRows int
+	products := make([]models.Product, 0)
+	for rows.Next() {
+		p := models.Product{}
+		f := models.File{}
+		rowErr := rows.Scan(&p.Id, &p.Url, &p.Title, &p.Price, &p.MainImageIndex, &totalRows, &f.FileId)
+		if rowErr != nil {
+			r.Error(rowErr)
+			return r
+		}
+
+		index := slices.IndexFunc(products, func(prod models.Product) bool {
+			return prod.Id == p.Id
+		})
+
+		if index == -1 {
+			p.Images = append(p.Images, f)
+			products = append(products, p)
+		} else {
+			products[index].Images = append(products[index].Images, f)
+		}
+	}
+
+	r.Write(http.StatusOK, jsonResponse.Json{
+		"message":  "ok",
+		"products": products,
+	})
 	return r
 }

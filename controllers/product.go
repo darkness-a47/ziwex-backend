@@ -18,3 +18,15 @@ func CreateProduct(c echo.Context) error {
 	r := services.CreateProduct(d)
 	return r.SendResponse(c)
 }
+
+func GetProductsSummery(c echo.Context) error {
+	d := dtos.GetProductsSummery{}
+	if err := c.Bind(&d); err != nil {
+		return err
+	}
+	if err := c.Validate(&d); err != nil {
+		return err
+	}
+	r := services.GetProductsSummery(d)
+	return r.SendResponse(c)
+}

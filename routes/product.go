@@ -8,4 +8,5 @@ import (
 
 func ProductRoutesInit(g *echo.Group) {
 	g.POST("/create", controllers.CreateProduct)
+	g.GET("/getProductsSummery", controllers.GetProductsSummery)
 }
