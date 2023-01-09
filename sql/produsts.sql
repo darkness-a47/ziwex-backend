@@ -6,5 +6,5 @@ CREATE TABLE IF NOT EXISTS products (
     price FLOAT8,
     options JSON[],
     description_key_value JSON[],
-    main_image INT
+    main_image_index INT
 )

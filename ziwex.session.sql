@@ -1,1 +1,1 @@
-DROP TABLE products CASCADE;
+DROP TABLE product_images CASCADE;
