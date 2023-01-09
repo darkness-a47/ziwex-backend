@@ -2,7 +2,7 @@ package dtos
 
 type CreateCategory struct {
 	Title            string   `json:"title" validate:"required"`
-	ImageUrl         string   `json:"image_url" validate:"required"`
+	ImageId          int      `json:"image_id" validate:"required,number"`
 	Description      string   `json:"description" validate:"required"`
 	ParentCategoryId *int     `json:"parent_category_id"`
 	Tags             []string `json:"tags" validate:"required"`

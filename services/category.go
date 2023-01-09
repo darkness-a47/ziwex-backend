@@ -12,26 +12,45 @@ import (
 )
 
 func CreateCategory(d dtos.CreateCategory) jsonResponse.Response {
-	res := jsonResponse.Response{}
+	r := jsonResponse.Response{}
+
+	fileCtx, fileCancel := utils.GetDatabaseContext()
+	defer fileCancel()
+
+	file := models.File{}
+	fileErr := db.Poll.QueryRow(fileCtx, `--sql
+		SELECT file_id FROM files where id = $1;
+	`, d.ImageId).Scan(&file.FileId)
+
+	if fileErr != nil {
+		if fileErr == pgx.ErrNoRows {
+			r.Write(http.StatusBadRequest, jsonResponse.Json{
+				"message": "image not found",
+			})
+			return r
+		}
+		r.Error(fileErr)
+		return r
+	}
 
 	ctx, cancel := utils.GetDatabaseContext()
 	defer cancel()
 
 	cat := models.Category{}
 	err := db.Poll.QueryRow(ctx, `--sql
-		INSERT INTO categories (title, image_url, description, parent_category_id, tags) VALUES ($1, $2, $3, $4, $5) RETURNING id;
-		`, d.Title, d.ImageUrl, d.Description, d.ParentCategoryId, d.Tags).Scan(&cat.Id)
+		INSERT INTO categories (title, image_id, description, parent_category_id, tags) VALUES ($1, $2, $3, $4, $5) RETURNING id;
+		`, d.Title, file.FileId, d.Description, d.ParentCategoryId, d.Tags).Scan(&cat.Id)
 	if err != nil {
-		res.Error(err)
-		return res
+		r.Error(err)
+		return r
 	}
 
-	res.Write(http.StatusCreated, jsonResponse.Json{
+	r.Write(http.StatusCreated, jsonResponse.Json{
 		"message":     "category created",
 		"category_id": cat.Id,
 	})
 
-	return res
+	return r
 }
 
 func GetCategories(d dtos.GetCategories) jsonResponse.Response {
@@ -47,13 +66,13 @@ func GetCategories(d dtos.GetCategories) jsonResponse.Response {
 	var err error
 	if d.ParentCategoryId != nil {
 		rows, err = db.Poll.Query(ctx, `--sql
-			SELECT id, title, image_url, description, parent_category_id, tags, COUNT(*) OVER() AS total_count 
+			SELECT id, title, image_id, description, parent_category_id, tags, COUNT(*) OVER() AS total_count 
 			FROM categories WHERE parent_category_id = $1 OFFSET $2 LIMIT $3
 		`, d.ParentCategoryId, offset, d.DataPerPage)
 	} else {
 		rows, err = db.Poll.Query(ctx, `--sql
-		SELECT id, title, image_url, description, parent_category_id, tags,  COUNT(*) OVER() AS total_count 
-		FROM categories WHERE parent_category_id IS NULL OFFSET $1 LIMIT $2
+			SELECT id, title, image_id, description, parent_category_id, tags,  COUNT(*) OVER() AS total_count 
+			FROM categories WHERE parent_category_id IS NULL OFFSET $1 LIMIT $2
 		`, offset, d.DataPerPage)
 	}
 	if err != nil {
@@ -64,7 +83,7 @@ func GetCategories(d dtos.GetCategories) jsonResponse.Response {
 	var totalRows int
 	for rows.Next() {
 		c := models.Category{}
-		err := rows.Scan(&c.Id, &c.Title, &c.ImageUrl, &c.Description, &c.ParentCategoryId, &c.Tags, &totalRows)
+		err := rows.Scan(&c.Id, &c.Title, &c.ImageId, &c.Description, &c.ParentCategoryId, &c.Tags, &totalRows)
 		if err != nil {
 			res.Error(err)
 			return res

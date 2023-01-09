@@ -1,1 +1,1 @@
-DELETE FROM files WHERE id = 1;
+DROP TABLE products CASCADE;
