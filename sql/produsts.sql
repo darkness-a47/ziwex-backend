@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS products (
     title TEXT,
     description TEXT,
     price FLOAT8,
-    options JSON[],
-    description_key_value JSON[],
+    options JSONB[],
+    description_key_value JSONB[],
     main_image_index INT
 )
