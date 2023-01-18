@@ -10,7 +10,6 @@ import (
 	"ziwex/utils"
 
 	"github.com/jackc/pgx/v5"
-	"golang.org/x/exp/slices"
 )
 
 func CreateProduct(d dtos.CreateProduct) types.Response {
@@ -147,26 +146,26 @@ func GetProductsSummery(d dtos.GetProductsSummery) types.Response {
 	skip := (d.Page - 1) * d.DataPerPage
 	if d.CategoryId != nil {
 		rows, err = db.Poll.Query(ctx, `--sql
-			WITH prod AS (
+			SELECT prod.*, jsonb_agg(DISTINCT jsonb_build_object('file_id' , f.file_id)) AS images FROM (
 				SELECT p.id, p.url, p.title, p.price, p.main_image_index, COUNT(*) OVER() AS total_rows
 				FROM products p
-				LEFT JOIN product_categories pc ON pc.product_id = p.id
-				WHERE pc.category_id = $1 
+				INNER JOIN product_categories pc ON pc.product_id = p.id
+				WHERE pc.category_id = $1
 				ORDER BY id DESC OFFSET $2 LIMIT $3
-			) 
-			SELECT prod.*, f.file_id FROM prod
+			) prod
 			LEFT JOIN product_images pi ON pi.product_id = prod.id
-			LEFT JOIN files f ON f.id = pi.image_id;
+			LEFT JOIN files f ON f.id = pi.image_id
+			GROUP BY prod.id, prod.url, prod.title, prod.price, prod.main_image_index, prod.total_rows;
 		`, *d.CategoryId, skip, d.DataPerPage)
 	} else {
 		rows, err = db.Poll.Query(ctx, `--sql
-			WITH prod AS (
+			SELECT prod.*, jsonb_agg(DISTINCT jsonb_build_object('file_id' , f.file_id)) AS images FROM (
 				SELECT id, url, title, price, main_image_index, COUNT(*) OVER() AS total_rows
 				FROM products ORDER BY id DESC OFFSET $1 LIMIT $2
-			) 
-			SELECT prod.*, f.file_id FROM prod
+			) prod
 			LEFT JOIN product_images pi ON pi.product_id = prod.id
-			LEFT JOIN files f ON f.id = pi.image_id;
+			LEFT JOIN files f ON f.id = pi.image_id
+			GROUP BY prod.id, prod.url, prod.title, prod.price, prod.main_image_index, prod.total_rows;
 		`, skip, d.DataPerPage)
 	}
 	if err != nil {
@@ -178,28 +177,88 @@ func GetProductsSummery(d dtos.GetProductsSummery) types.Response {
 	products := make([]models.Product, 0)
 	for rows.Next() {
 		p := models.Product{}
-		f := models.File{}
-		rowErr := rows.Scan(&p.Id, &p.Url, &p.Title, &p.Price, &p.MainImageIndex, &totalRows, &f.FileId)
+		rowErr := rows.Scan(&p.Id, &p.Url, &p.Title, &p.Price, &p.MainImageIndex, &totalRows, &p.Images)
 		if rowErr != nil {
 			r.Error(rowErr)
 			return r
 		}
-
-		index := slices.IndexFunc(products, func(prod models.Product) bool {
-			return prod.Id == p.Id
-		})
-
-		if index == -1 {
-			p.Images = append(p.Images, f)
-			products = append(products, p)
-		} else {
-			products[index].Images = append(products[index].Images, f)
-		}
+		products = append(products, p)
 	}
 
 	r.Write(http.StatusOK, jsonResponse.Json{
 		"message":  "ok",
 		"products": products,
 	})
+	return r
+}
+
+func GetProductData(d dtos.GetProductData) types.Response {
+	r := &jsonResponse.Response{}
+
+	ctx, cancel := utils.GetDatabaseContext()
+	defer cancel()
+
+	p := models.Product{}
+	err := db.Poll.QueryRow(ctx, `--sql
+		SELECT
+			prod.*,
+			jsonb_agg(DISTINCT jsonb_build_object(
+				'id', cat.id,
+				'title', cat.title
+			)) AS categories,
+			jsonb_agg(DISTINCT jsonb_build_object(
+				'file_id', pf.file_id
+			)) AS images,
+			jsonb_agg(DISTINCT jsonb_build_object(
+				'id', prec.id,
+				'images', prec.images
+			)) AS product_recommend_products,
+			jsonb_agg(DISTINCT jsonb_build_object(
+				'id', prel.id,
+				'images', prel.images
+			)) AS product_related_products
+		FROM products prod
+
+		INNER JOIN product_categories pcat ON pcat.product_id = prod.id
+		INNER JOIN categories cat ON cat.id = pcat.category_id
+
+		INNER JOIN product_images pi ON pi.product_id = prod.id
+		INNER JOIN files pf ON pf.id = pi.image_id
+
+		INNER JOIN product_recommend_products precp ON precp.product_id = prod.id
+		CROSS JOIN LATERAL (
+			SELECT
+				p.id,
+				jsonb_agg(jsonb_build_object('file_id', f.file_id)) AS images
+			FROM products p
+			INNER JOIN product_images i ON i.product_id = p.id
+			INNER JOIN files f ON f.id = i.image_id
+			WHERE p.id = precp.recommend_product_id
+			GROUP BY p.id
+		) AS prec
+
+		INNER JOIN product_related_products prelp ON prelp.product_id = prod.id
+		CROSS JOIN LATERAL (
+			SELECT
+				p.id,
+				jsonb_agg(jsonb_build_object('file_id', f.file_id)) AS images
+			FROM products p
+			INNER JOIN product_images i ON i.product_id = p.id
+			INNER JOIN files f ON f.id = i.image_id
+			WHERE p.id = prelp.related_product_id
+			GROUP BY p.id
+		) AS prel
+
+		WHERE url = $1
+		GROUP BY prod.id;
+	`, d.ProductUrl).Scan(&p.Id, &p.Url, &p.Title, &p.Description, &p.Price, &p.Options,
+		&p.DescriptionKeyValue, &p.MainImageIndex, &p.Categories, &p.Images, &p.RecommendProducts, &p.RelatedProducts)
+
+	if err != nil {
+		r.Error(err)
+		return r
+	}
+	r.Write(http.StatusOK, &p)
+
 	return r
 }

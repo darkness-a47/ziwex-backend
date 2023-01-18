@@ -1,2 +1,3 @@
 *.code-workspace
-ziwex.session.sql
+/ziwex.session.sql
+/.vscode

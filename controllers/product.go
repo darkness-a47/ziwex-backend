@@ -30,3 +30,15 @@ func GetProductsSummery(c echo.Context) error {
 	r := services.GetProductsSummery(d)
 	return r.SendResponse(c)
 }
+
+func GetProductData(c echo.Context) error {
+	d := dtos.GetProductData{}
+	if err := c.Bind(&d); err != nil {
+		return err
+	}
+	if err := c.Validate(&d); err != nil {
+		return err
+	}
+	r := services.GetProductData(d)
+	return r.SendResponse(c)
+}

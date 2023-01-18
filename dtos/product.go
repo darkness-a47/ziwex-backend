@@ -24,3 +24,7 @@ type GetProductsSummery struct {
 	Page        int  `query:"page" validate:"required"`
 	DataPerPage int  `query:"data_per_page" validate:"required"`
 }
+
+type GetProductData struct {
+	ProductUrl string `param:"product_url" validate:"required"`
+}
