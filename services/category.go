@@ -14,11 +14,11 @@ import (
 func CreateCategory(d dtos.CreateCategory) jsonResponse.Response {
 	r := jsonResponse.Response{}
 
-	fileCtx, fileCancel := utils.GetDatabaseContext()
+	fileCtx, fileCancel := utils.GetPgContext()
 	defer fileCancel()
 
 	file := models.File{}
-	fileErr := db.Poll.QueryRow(fileCtx, `--sql
+	fileErr := db.Pg.QueryRow(fileCtx, `--sql
 		SELECT file_id FROM files where id = $1;
 	`, d.ImageId).Scan(&file.FileId)
 
@@ -33,11 +33,11 @@ func CreateCategory(d dtos.CreateCategory) jsonResponse.Response {
 		return r
 	}
 
-	ctx, cancel := utils.GetDatabaseContext()
+	ctx, cancel := utils.GetPgContext()
 	defer cancel()
 
 	cat := models.Category{}
-	err := db.Poll.QueryRow(ctx, `--sql
+	err := db.Pg.QueryRow(ctx, `--sql
 		INSERT INTO categories (title, image_id, description, parent_category_id, tags) VALUES ($1, $2, $3, $4, $5) RETURNING id;
 		`, d.Title, file.FileId, d.Description, d.ParentCategoryId, d.Tags).Scan(&cat.Id)
 	if err != nil {
@@ -58,19 +58,19 @@ func GetCategories(d dtos.GetCategories) jsonResponse.Response {
 
 	categories := make([]models.Category, 0)
 
-	ctx, cancel := utils.GetDatabaseContext()
+	ctx, cancel := utils.GetPgContext()
 	defer cancel()
 
 	offset := (d.Page - 1) * d.DataPerPage
 	var rows pgx.Rows
 	var err error
 	if d.ParentCategoryId != nil {
-		rows, err = db.Poll.Query(ctx, `--sql
+		rows, err = db.Pg.Query(ctx, `--sql
 			SELECT id, title, image_id, description, parent_category_id, tags, COUNT(*) OVER() AS total_count 
 			FROM categories WHERE parent_category_id = $1 OFFSET $2 LIMIT $3
 		`, d.ParentCategoryId, offset, d.DataPerPage)
 	} else {
-		rows, err = db.Poll.Query(ctx, `--sql
+		rows, err = db.Pg.Query(ctx, `--sql
 			SELECT id, title, image_id, description, parent_category_id, tags,  COUNT(*) OVER() AS total_count 
 			FROM categories WHERE parent_category_id IS NULL OFFSET $1 LIMIT $2
 		`, offset, d.DataPerPage)

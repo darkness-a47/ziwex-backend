@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-func GetDatabaseContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), time.Millisecond*200)
+func GetPgContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), time.Millisecond*500)
 }
 
 func GetMinioContext() (context.Context, context.CancelFunc) {
@@ -14,5 +14,9 @@ func GetMinioContext() (context.Context, context.CancelFunc) {
 }
 
 func GetMinioGetContext() (context.Context, context.CancelFunc) {
-	return context.WithCancel(context.Background())
+	return context.WithTimeout(context.Background(), time.Microsecond*2000)
+}
+
+func GetRedisContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), time.Millisecond*200)
 }

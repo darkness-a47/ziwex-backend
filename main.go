@@ -19,8 +19,10 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Validator = &etc.CustomValidator{Validator: validator.New()}
 
-	close := db.ConnetionInit()
+	close := db.PgInit()
 	defer close()
+
+	db.RedisInit()
 
 	minioClient.InitConnection()
 

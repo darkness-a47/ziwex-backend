@@ -15,11 +15,11 @@ func AuthAdminRegister(user dtos.AuthAdminRegister) jsonResponse.Response {
 	res := jsonResponse.Response{}
 
 	//check exists
-	ctx, cancel := utils.GetDatabaseContext()
+	ctx, cancel := utils.GetPgContext()
 	defer cancel()
 
 	admin := models.AuthAdmin{}
-	err := db.Poll.QueryRow(ctx, `--sql
+	err := db.Pg.QueryRow(ctx, `--sql
 		SELECT email, username FROM admins WHERE email = $1 OR username = $2;
 	`, user.Email, user.Username).Scan(&admin.Email, &admin.Username)
 	if err != nil && err != pgx.ErrNoRows {
@@ -49,9 +49,9 @@ func AuthAdminRegister(user dtos.AuthAdminRegister) jsonResponse.Response {
 		return res
 	}
 
-	ctx2, cancel2 := utils.GetDatabaseContext()
+	ctx2, cancel2 := utils.GetPgContext()
 	defer cancel2()
-	err2 := db.Poll.QueryRow(ctx2, `--sql
+	err2 := db.Pg.QueryRow(ctx2, `--sql
 		INSERT INTO admins (firstname, lastname, email, password, username) VALUES ($1, $2, $3,	$4,	$5);
 	`, user.Firstname, user.Lastname, user.Email, user.Password, user.Username).Scan()
 
@@ -71,9 +71,9 @@ func AuthAdminLogin(user dtos.AuthAdminLogin) jsonResponse.Response {
 	res := jsonResponse.Response{}
 
 	userDb := models.AuthAdmin{}
-	ctx, cancel := utils.GetDatabaseContext()
+	ctx, cancel := utils.GetPgContext()
 	defer cancel()
-	err := db.Poll.QueryRow(ctx, `--sql
+	err := db.Pg.QueryRow(ctx, `--sql
 		SELECT password FROM admins WHERE username = $1;
 	`, user.Username).Scan(&userDb.Password)
 

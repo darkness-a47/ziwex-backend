@@ -2,6 +2,7 @@ package services
 
 import (
 	"net/http"
+	"ziwex/cache"
 	"ziwex/db"
 	"ziwex/dtos"
 	"ziwex/models"
@@ -15,19 +16,19 @@ import (
 func CreateProduct(d dtos.CreateProduct) types.Response {
 	r := &jsonResponse.Response{}
 
-	txCtx, txCancel := utils.GetDatabaseContext()
+	txCtx, txCancel := utils.GetPgContext()
 	defer txCancel()
 
-	txFinalCtx, txFinalCancel := utils.GetDatabaseContext()
+	txFinalCtx, txFinalCancel := utils.GetPgContext()
 	defer txFinalCancel()
 
-	tx, txErr := db.Poll.Begin(txCtx)
+	tx, txErr := db.Pg.Begin(txCtx)
 	if txErr != nil {
 		r.Error(txErr)
 		return r
 	}
 
-	productCtx, productCancel := utils.GetDatabaseContext()
+	productCtx, productCancel := utils.GetPgContext()
 	defer productCancel()
 
 	var productId int
@@ -42,7 +43,7 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 	}
 
 	for _, img := range d.Images {
-		imageCtx, imageCancel := utils.GetDatabaseContext()
+		imageCtx, imageCancel := utils.GetPgContext()
 		defer imageCancel()
 
 		imageErr := tx.QueryRow(imageCtx, `
@@ -61,13 +62,13 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 
 	if len(d.Categories) > 0 {
 		for _, cat := range d.Categories {
-			categoriesCtx, categoriesCancel := utils.GetDatabaseContext()
+			categoriesCtx, categoriesCancel := utils.GetPgContext()
 			defer categoriesCancel()
 			categoriesErr := tx.QueryRow(categoriesCtx, `--sql
 				INSERT INTO product_categories(product_id, category_id)
 				VALUES ($1, $2)
 			`, productId, cat).Scan()
-			txFinalCtx, txFinalCancel := utils.GetDatabaseContext()
+			txFinalCtx, txFinalCancel := utils.GetPgContext()
 			defer txFinalCancel()
 			if categoriesErr != nil && categoriesErr != pgx.ErrNoRows {
 				_ = tx.Rollback(txFinalCtx)
@@ -82,7 +83,7 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 
 	if len(d.RelatedProducts) > 0 {
 		for _, rp := range d.RelatedProducts {
-			relatedProductsCtx, relatedProductsCancel := utils.GetDatabaseContext()
+			relatedProductsCtx, relatedProductsCancel := utils.GetPgContext()
 			defer relatedProductsCancel()
 			relatedProductsErr := tx.QueryRow(relatedProductsCtx, `--sql
 				INSERT INTO product_related_products(product_id, related_product_id)
@@ -102,7 +103,7 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 
 	if len(d.RecommendProducts) > 0 {
 		for _, rp := range d.RecommendProducts {
-			recommendProductsCtx, recommendProductsCancel := utils.GetDatabaseContext()
+			recommendProductsCtx, recommendProductsCancel := utils.GetPgContext()
 			defer recommendProductsCancel()
 			recommendProductsErr := tx.QueryRow(recommendProductsCtx, `--sql
 				INSERT INTO product_recommend_products(product_id, recommend_product_id)
@@ -122,7 +123,7 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 
 	txFinalErr := tx.Commit(txFinalCtx)
 	if txFinalErr != nil {
-		rollbackCtx, rollbackCancel := utils.GetDatabaseContext()
+		rollbackCtx, rollbackCancel := utils.GetPgContext()
 		defer rollbackCancel()
 		_ = tx.Rollback(rollbackCtx)
 		r.Error(txFinalErr)
@@ -138,14 +139,14 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 func GetProductsSummery(d dtos.GetProductsSummery) types.Response {
 	r := &jsonResponse.Response{}
 
-	ctx, cancel := utils.GetDatabaseContext()
+	ctx, cancel := utils.GetPgContext()
 	defer cancel()
 
 	var rows pgx.Rows
 	var err error
 	skip := (d.Page - 1) * d.DataPerPage
 	if d.CategoryId != nil {
-		rows, err = db.Poll.Query(ctx, `--sql
+		rows, err = db.Pg.Query(ctx, `--sql
 			SELECT prod.*, jsonb_agg(DISTINCT jsonb_build_object('file_id' , f.file_id)) AS images FROM (
 				SELECT p.id, p.url, p.title, p.price, p.main_image_index, COUNT(*) OVER() AS total_rows
 				FROM products p
@@ -158,7 +159,7 @@ func GetProductsSummery(d dtos.GetProductsSummery) types.Response {
 			GROUP BY prod.id, prod.url, prod.title, prod.price, prod.main_image_index, prod.total_rows;
 		`, *d.CategoryId, skip, d.DataPerPage)
 	} else {
-		rows, err = db.Poll.Query(ctx, `--sql
+		rows, err = db.Pg.Query(ctx, `--sql
 			SELECT prod.*, jsonb_agg(DISTINCT jsonb_build_object('file_id' , f.file_id)) AS images FROM (
 				SELECT id, url, title, price, main_image_index, COUNT(*) OVER() AS total_rows
 				FROM products ORDER BY id DESC OFFSET $1 LIMIT $2
@@ -192,14 +193,14 @@ func GetProductsSummery(d dtos.GetProductsSummery) types.Response {
 	return r
 }
 
-func GetProductData(d dtos.GetProductData) types.Response {
+func GetProductData(d dtos.GetProductData, path string) types.Response {
 	r := &jsonResponse.Response{}
 
-	ctx, cancel := utils.GetDatabaseContext()
+	ctx, cancel := utils.GetPgContext()
 	defer cancel()
 
 	p := models.Product{}
-	err := db.Poll.QueryRow(ctx, `--sql
+	err := db.Pg.QueryRow(ctx, `--sql
 		SELECT prod.*,
 			jsonb_agg(
 				DISTINCT jsonb_build_object('id', cat.id, 'title', cat.title)
@@ -218,14 +219,20 @@ func GetProductData(d dtos.GetProductData) types.Response {
 		&p.DescriptionKeyValue, &p.MainImageIndex, &p.Categories, &p.Images)
 
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			r.Write(http.StatusNotFound, jsonResponse.Json{
+				"message": "product not fount",
+			})
+			return r
+		}
 		r.Error(err)
 		return r
 	}
 	//related products
 
-	relCtx, relCancel := utils.GetDatabaseContext()
+	relCtx, relCancel := utils.GetPgContext()
 	defer relCancel()
-	relRows, relErr := db.Poll.Query(relCtx, `--sql
+	relRows, relErr := db.Pg.Query(relCtx, `--sql
 		SELECT p.id,
 		p.title,
 		p.main_image_index,
@@ -262,9 +269,9 @@ func GetProductData(d dtos.GetProductData) types.Response {
 
 	//recommend
 
-	recCtx, recCancel := utils.GetDatabaseContext()
+	recCtx, recCancel := utils.GetPgContext()
 	defer recCancel()
-	recRows, recErr := db.Poll.Query(recCtx, `--sql
+	recRows, recErr := db.Pg.Query(recCtx, `--sql
 		SELECT p.id,
 		p.title,
 		p.main_image_index,
@@ -304,6 +311,10 @@ func GetProductData(d dtos.GetProductData) types.Response {
 		return r
 	}
 	r.Write(http.StatusOK, &p)
+
+	go func() {
+		cache.Store(path, "", &p)
+	}()
 
 	return r
 }

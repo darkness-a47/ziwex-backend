@@ -49,11 +49,11 @@ func UploadFile(d dtos.UploadFile) types.Response {
 		return r
 	}
 
-	dbCtx, dbCancel := utils.GetDatabaseContext()
+	dbCtx, dbCancel := utils.GetPgContext()
 	defer dbCancel()
 
 	filename := d.Filename + path.Ext(d.File.Filename)
-	dbErr := db.Poll.QueryRow(dbCtx, `--sql
+	dbErr := db.Pg.QueryRow(dbCtx, `--sql
 		INSERT INTO files (filename, file_id, hash_md5, content_type) VALUES ($1, $2, $3::UUID, $4);
 	`, filename, objectName.String(), info.ETag, contentType).Scan()
 
@@ -72,11 +72,11 @@ func UploadFile(d dtos.UploadFile) types.Response {
 
 func ServeFile(d dtos.ServeFile) types.Response {
 	r := &jsonResponse.Response{}
-	dbCtx, dbCancel := utils.GetDatabaseContext()
+	dbCtx, dbCancel := utils.GetPgContext()
 	defer dbCancel()
 
 	dbFile := models.File{}
-	dbErr := db.Poll.QueryRow(dbCtx, `--sql
+	dbErr := db.Pg.QueryRow(dbCtx, `--sql
 		SELECT filename, content_type FROM files WHERE file_id = $1;
 	`, d.FileId).Scan(&dbFile.Filename, &dbFile.ContentType)
 	if dbErr != nil {
@@ -110,11 +110,11 @@ func ServeFile(d dtos.ServeFile) types.Response {
 func GetFiles(d dtos.GetFiles) types.Response {
 	r := &jsonResponse.Response{}
 
-	ctx, cancel := utils.GetDatabaseContext()
+	ctx, cancel := utils.GetPgContext()
 	defer cancel()
 
 	skip := (d.Page - 1) * d.DataPerPage
-	rows, err := db.Poll.Query(ctx, `--sql
+	rows, err := db.Pg.Query(ctx, `--sql
 		SELECT id, filename, file_id, content_type, hash_md5, COUNT(*) OVER() AS total FROM files
 		WHERE (filename LIKE '%' || $1 || '%') ORDER BY id DESC OFFSET $2 LIMIT $3;
 	`, *d.Filename, skip, d.DataPerPage)
@@ -147,10 +147,10 @@ func GetFiles(d dtos.GetFiles) types.Response {
 func UpdateFile(d dtos.UpdateFile) types.Response {
 	r := &jsonResponse.Response{}
 
-	ctx, cancel := utils.GetDatabaseContext()
+	ctx, cancel := utils.GetPgContext()
 	defer cancel()
 	f := models.File{}
-	err := db.Poll.QueryRow(ctx, `--sql
+	err := db.Pg.QueryRow(ctx, `--sql
 		SELECT file_id FROM files WHERE id = $1;
 	`, d.Id).Scan(&f.FileId)
 
@@ -195,10 +195,10 @@ func UpdateFile(d dtos.UpdateFile) types.Response {
 			return r
 		}
 
-		dbCtx, dbCancel := utils.GetDatabaseContext()
+		dbCtx, dbCancel := utils.GetPgContext()
 		defer dbCancel()
 
-		dbErr := db.Poll.QueryRow(dbCtx, `--sql
+		dbErr := db.Pg.QueryRow(dbCtx, `--sql
 			UPDATE files SET hash_md5 = $1, content_type = $2 WHERE id = $3;
 		`, info.ETag, contentType, d.Id).Scan()
 
@@ -210,10 +210,10 @@ func UpdateFile(d dtos.UpdateFile) types.Response {
 	}
 
 	if d.Filename != nil {
-		dbCtx, dbCancel := utils.GetDatabaseContext()
+		dbCtx, dbCancel := utils.GetPgContext()
 		defer dbCancel()
 
-		dbErr := db.Poll.QueryRow(dbCtx, `--sql
+		dbErr := db.Pg.QueryRow(dbCtx, `--sql
 			UPDATE files SET filename = $1 WHERE id = $2;
 		`, d.Filename, d.Id).Scan()
 
@@ -232,9 +232,9 @@ func DeleteFile(d dtos.DeleteFile) types.Response {
 	r := &jsonResponse.Response{}
 
 	f := models.File{}
-	dbFileCtx, dbFileCancel := utils.GetDatabaseContext()
+	dbFileCtx, dbFileCancel := utils.GetPgContext()
 	defer dbFileCancel()
-	dbFileErr := db.Poll.QueryRow(dbFileCtx, `--sql
+	dbFileErr := db.Pg.QueryRow(dbFileCtx, `--sql
 		SELECT file_id FROM files WHERE id = $1;
 	`, d.Id).Scan(&f.FileId)
 
@@ -258,10 +258,10 @@ func DeleteFile(d dtos.DeleteFile) types.Response {
 		return r
 	}
 
-	dbCtx, dbCancel := utils.GetDatabaseContext()
+	dbCtx, dbCancel := utils.GetPgContext()
 	defer dbCancel()
 
-	dbErr := db.Poll.QueryRow(dbCtx, `--sql
+	dbErr := db.Pg.QueryRow(dbCtx, `--sql
 		DELETE FROM files WHERE id = $1;
 	`, d.Id).Scan()
 

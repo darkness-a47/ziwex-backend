@@ -39,6 +39,7 @@ func GetProductData(c echo.Context) error {
 	if err := c.Validate(&d); err != nil {
 		return err
 	}
-	r := services.GetProductData(d)
+	url := c.Request().URL.RequestURI()
+	r := services.GetProductData(d, url)
 	return r.SendResponse(c)
 }
