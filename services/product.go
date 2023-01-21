@@ -200,59 +200,104 @@ func GetProductData(d dtos.GetProductData) types.Response {
 
 	p := models.Product{}
 	err := db.Poll.QueryRow(ctx, `--sql
-		SELECT
-			prod.*,
-			jsonb_agg(DISTINCT jsonb_build_object(
-				'id', cat.id,
-				'title', cat.title
-			)) AS categories,
-			jsonb_agg(DISTINCT jsonb_build_object(
-				'file_id', pf.file_id
-			)) AS images,
-			jsonb_agg(DISTINCT jsonb_build_object(
-				'id', prec.id,
-				'images', prec.images
-			)) AS product_recommend_products,
-			jsonb_agg(DISTINCT jsonb_build_object(
-				'id', prel.id,
-				'images', prel.images
-			)) AS product_related_products
+		SELECT prod.*,
+			jsonb_agg(
+				DISTINCT jsonb_build_object('id', cat.id, 'title', cat.title)
+			) AS categories,
+			jsonb_agg(
+				DISTINCT jsonb_build_object('file_id', pf.file_id)
+			) AS images
 		FROM products prod
-
-		INNER JOIN product_categories pcat ON pcat.product_id = prod.id
-		INNER JOIN categories cat ON cat.id = pcat.category_id
-
-		INNER JOIN product_images pi ON pi.product_id = prod.id
-		INNER JOIN files pf ON pf.id = pi.image_id
-
-		INNER JOIN product_recommend_products precp ON precp.product_id = prod.id
-		CROSS JOIN LATERAL (
-			SELECT
-				p.id,
-				jsonb_agg(jsonb_build_object('file_id', f.file_id)) AS images
-			FROM products p
-			INNER JOIN product_images i ON i.product_id = p.id
-			INNER JOIN files f ON f.id = i.image_id
-			WHERE p.id = precp.recommend_product_id
-			GROUP BY p.id
-		) AS prec
-
-		INNER JOIN product_related_products prelp ON prelp.product_id = prod.id
-		CROSS JOIN LATERAL (
-			SELECT
-				p.id,
-				jsonb_agg(jsonb_build_object('file_id', f.file_id)) AS images
-			FROM products p
-			INNER JOIN product_images i ON i.product_id = p.id
-			INNER JOIN files f ON f.id = i.image_id
-			WHERE p.id = prelp.related_product_id
-			GROUP BY p.id
-		) AS prel
-
+			LEFT JOIN product_categories pcat ON pcat.product_id = prod.id
+			LEFT JOIN categories cat ON cat.id = pcat.category_id
+			LEFT JOIN product_images pi ON pi.product_id = prod.id
+			LEFT JOIN files pf ON pf.id = pi.image_id
 		WHERE url = $1
 		GROUP BY prod.id;
 	`, d.ProductUrl).Scan(&p.Id, &p.Url, &p.Title, &p.Description, &p.Price, &p.Options,
-		&p.DescriptionKeyValue, &p.MainImageIndex, &p.Categories, &p.Images, &p.RecommendProducts, &p.RelatedProducts)
+		&p.DescriptionKeyValue, &p.MainImageIndex, &p.Categories, &p.Images)
+
+	if err != nil {
+		r.Error(err)
+		return r
+	}
+	//related products
+
+	relCtx, relCancel := utils.GetDatabaseContext()
+	defer relCancel()
+	relRows, relErr := db.Poll.Query(relCtx, `--sql
+		SELECT p.id,
+		p.title,
+		p.main_image_index,
+		p.price,
+		p.url,
+		jsonb_agg(
+			jsonb_build_object(
+				'file_id',
+				f.file_id
+			)
+		) AS images
+		FROM product_recommend_products precp
+			LEFT JOIN products p ON p.id = precp.recommend_product_id
+			LEFT JOIN product_images pi ON pi.product_id = p.id
+			LEFT JOIN files f ON f.id = pi.image_id
+		WHERE precp.product_id = $1
+		GROUP BY p.id;
+	`, p.Id)
+
+	if relErr != nil {
+		r.Error(relErr)
+		return r
+	}
+
+	for relRows.Next() {
+		prel := models.Product{}
+		err := relRows.Scan(&prel.Id, &prel.Title, &prel.MainImageIndex, &prel.Price, &prel.Url, &prel.Images)
+		if err != nil {
+			r.Error(err)
+			return r
+		}
+		p.RelatedProducts = append(p.RelatedProducts, prel)
+	}
+
+	//recommend
+
+	recCtx, recCancel := utils.GetDatabaseContext()
+	defer recCancel()
+	recRows, recErr := db.Poll.Query(recCtx, `--sql
+		SELECT p.id,
+		p.title,
+		p.main_image_index,
+		p.price,
+		p.url,
+		jsonb_agg(
+			jsonb_build_object(
+				'file_id',
+				f.file_id
+			)
+		) AS images
+		FROM product_recommend_products precp
+			LEFT JOIN products p ON p.id = precp.recommend_product_id
+			LEFT JOIN product_images pi ON pi.product_id = p.id
+			LEFT JOIN files f ON f.id = pi.image_id
+		WHERE precp.product_id = $1
+		GROUP BY p.id;
+	`, p.Id)
+
+	if recErr != nil {
+		r.Error(recErr)
+		return r
+	}
+
+	for recRows.Next() {
+		prec := models.Product{}
+		err := recRows.Scan(&prec.Id, &prec.Title, &prec.MainImageIndex, &prec.Price, &prec.Url, &prec.Images)
+		if err != nil {
+			r.Error(err)
+			return r
+		}
+		p.RecommendProducts = append(p.RelatedProducts, prec)
+	}
 
 	if err != nil {
 		r.Error(err)
