@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"ziwex/cache"
-	"ziwex/types/jsonResponse"
+	"ziwex/types/jsonbResponse"
 
 	"github.com/labstack/echo/v4"
 )
@@ -15,10 +15,11 @@ func CheckCacheParam() echo.MiddlewareFunc {
 			url := c.Request().URL.RequestURI()
 			data, err := cache.Get(url, "")
 			if err != nil {
+				fmt.Println(err)
 				return next(c)
 			}
 			fmt.Println("cache used")
-			r := jsonResponse.Response{}
+			r := jsonbResponse.Response{}
 			r.Write(http.StatusOK, data)
 			return r.SendResponse(c)
 		}

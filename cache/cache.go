@@ -6,15 +6,12 @@ import (
 	"fmt"
 	"time"
 	"ziwex/db"
-	"ziwex/types/jsonResponse"
 	"ziwex/utils"
 )
 
-func createKey(route string, metadata string) string {
-	return base64.StdEncoding.EncodeToString(append([]byte(route), []byte(metadata)...))
-}
+const cacheExpTime = time.Minute * 120
 
-func Store(route string, metadata string, data interface{}) {
+func Store(route string, metadata string, data interface{}, index *Index) {
 	ctx, cancel := utils.GetRedisContext()
 	defer cancel()
 
@@ -23,10 +20,15 @@ func Store(route string, metadata string, data interface{}) {
 	fmt.Println("stored with key: ", key)
 
 	//TODO: balance time out
-	_ = db.Redis.SetNX(ctx, key, d, time.Minute*120)
+	_ = db.Redis.SetNX(ctx, key, d, cacheExpTime)
+
+	if index != nil {
+		index.Value = key
+		createIndex(index)
+	}
 }
 
-func Get(route string, metadata string) (interface{}, error) {
+func Get(route string, metadata string) ([]byte, error) {
 	key := createKey(route, metadata)
 	ctx, cancel := utils.GetRedisContext()
 	defer cancel()
@@ -35,13 +37,9 @@ func Get(route string, metadata string) (interface{}, error) {
 		return nil, err
 	}
 
-	d := jsonResponse.Json{}
+	return []byte(str), nil
+}
 
-	jsonErr := json.Unmarshal([]byte(str), &d)
-
-	if jsonErr != nil {
-		return nil, jsonErr
-	}
-
-	return d, nil
+func createKey(route string, metadata string) string {
+	return base64.StdEncoding.EncodeToString(append([]byte(route), []byte(metadata)...))
 }

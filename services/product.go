@@ -2,6 +2,7 @@ package services
 
 import (
 	"net/http"
+	"strconv"
 	"ziwex/cache"
 	"ziwex/db"
 	"ziwex/dtos"
@@ -313,7 +314,11 @@ func GetProductData(d dtos.GetProductData, path string) types.Response {
 	r.Write(http.StatusOK, &p)
 
 	go func() {
-		cache.Store(path, "", &p)
+		cache.Store(path, "", &p, &cache.Index{
+			IndexType:    cache.ProductIndex,
+			IndexSubType: cache.ProductDataSubIndex,
+			Index:        strconv.Itoa(p.Id),
+		})
 	}()
 
 	return r
