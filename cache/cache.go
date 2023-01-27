@@ -9,7 +9,7 @@ import (
 	"ziwex/utils"
 )
 
-const cacheExpTime = time.Minute * 120
+const cacheExpTime = time.Minute * 60
 
 func Store(route string, metadata string, data interface{}, index *Index) {
 	ctx, cancel := utils.GetRedisContext()
@@ -40,6 +40,20 @@ func Get(route string, metadata string) ([]byte, error) {
 	return []byte(str), nil
 }
 
+func InvalidateAll(index *Index) {
+	keys, err := getInvalidateIndexAll(index)
+	if err != nil {
+		return
+	}
+ 
+	for _, v := range keys {
+		ctx, cancel := utils.GetRedisContext()
+		defer cancel()
+
+		_ = db.Redis.Del(ctx, v)
+	}
+}
+
 func createKey(route string, metadata string) string {
-	return base64.StdEncoding.EncodeToString(append([]byte(route), []byte(metadata)...))
+	return "c:" + base64.StdEncoding.EncodeToString(append([]byte(route), []byte(metadata)...))
 }

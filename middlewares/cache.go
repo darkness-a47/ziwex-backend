@@ -15,7 +15,6 @@ func CheckCacheParam() echo.MiddlewareFunc {
 			url := c.Request().URL.RequestURI()
 			data, err := cache.Get(url, "")
 			if err != nil {
-				fmt.Println(err)
 				return next(c)
 			}
 			fmt.Println("cache used")

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"ziwex/cache"
@@ -127,12 +128,18 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 		rollbackCtx, rollbackCancel := utils.GetPgContext()
 		defer rollbackCancel()
 		_ = tx.Rollback(rollbackCtx)
-		r.Error(txFinalErr)
 		return r
 	}
 	r.Write(http.StatusCreated, jsonResponse.Json{
 		"message": "ok",
 	})
+
+	go func() {
+		cache.InvalidateAll(&cache.Index{
+			IndexType:    cache.ProductIndex,
+			IndexSubType: cache.ProductSummerySubIndex,
+		})
+	}()
 
 	return r
 }
@@ -187,14 +194,30 @@ func GetProductsSummery(d dtos.GetProductsSummery) types.Response {
 		products = append(products, p)
 	}
 
-	r.Write(http.StatusOK, jsonResponse.Json{
+	jsonR := jsonResponse.Json{
 		"message":  "ok",
 		"products": products,
-	})
+	}
+
+	r.Write(http.StatusOK, jsonR)
+
+	go func() {
+		cid := 0
+		if d.CategoryId != nil {
+			cid = *d.CategoryId
+		}
+		index := fmt.Sprintf("%d,%d,%d", cid, d.Page, d.DataPerPage)
+		cache.Store(d.RequestPath, "", &jsonR, &cache.Index{
+			IndexType:    cache.ProductIndex,
+			IndexSubType: cache.ProductSummerySubIndex,
+			Index:        index,
+		})
+	}()
+
 	return r
 }
 
-func GetProductData(d dtos.GetProductData, path string) types.Response {
+func GetProductData(d dtos.GetProductData) types.Response {
 	r := &jsonResponse.Response{}
 
 	ctx, cancel := utils.GetPgContext()
@@ -314,7 +337,7 @@ func GetProductData(d dtos.GetProductData, path string) types.Response {
 	r.Write(http.StatusOK, &p)
 
 	go func() {
-		cache.Store(path, "", &p, &cache.Index{
+		cache.Store(d.RequestPath, "", &p, &cache.Index{
 			IndexType:    cache.ProductIndex,
 			IndexSubType: cache.ProductDataSubIndex,
 			Index:        strconv.Itoa(p.Id),

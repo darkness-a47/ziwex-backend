@@ -23,8 +23,10 @@ type GetProductsSummery struct {
 	CategoryId  *int `query:"category_id"`
 	Page        int  `query:"page" validate:"required"`
 	DataPerPage int  `query:"data_per_page" validate:"required"`
+	RequestPath string
 }
 
 type GetProductData struct {
-	ProductUrl string `param:"product_url" validate:"required"`
+	ProductUrl  string `param:"product_url" validate:"required"`
+	RequestPath string
 }

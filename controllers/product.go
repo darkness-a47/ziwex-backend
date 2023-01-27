@@ -27,6 +27,8 @@ func GetProductsSummery(c echo.Context) error {
 	if err := c.Validate(&d); err != nil {
 		return err
 	}
+	url := c.Request().URL.RequestURI()
+	d.RequestPath = url
 	r := services.GetProductsSummery(d)
 	return r.SendResponse(c)
 }
@@ -40,6 +42,7 @@ func GetProductData(c echo.Context) error {
 		return err
 	}
 	url := c.Request().URL.RequestURI()
-	r := services.GetProductData(d, url)
+	d.RequestPath = url
+	r := services.GetProductData(d)
 	return r.SendResponse(c)
 }

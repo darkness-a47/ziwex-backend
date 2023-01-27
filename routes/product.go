@@ -9,6 +9,6 @@ import (
 
 func ProductRoutesInit(g *echo.Group) {
 	g.POST("/create", controllers.CreateProduct)
-	g.GET("/productsSummery", controllers.GetProductsSummery)
+	g.GET("/productsSummery", controllers.GetProductsSummery, middlewares.CheckCacheParam())
 	g.GET("/data/:product_url", controllers.GetProductData, middlewares.CheckCacheParam())
 }
