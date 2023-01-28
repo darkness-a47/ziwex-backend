@@ -14,7 +14,7 @@ func GetMinioContext() (context.Context, context.CancelFunc) {
 }
 
 func GetMinioGetContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), time.Microsecond*2000)
+	return context.WithCancel(context.Background())
 }
 
 func GetRedisContext() (context.Context, context.CancelFunc) {

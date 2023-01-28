@@ -53,9 +53,10 @@ func UploadFile(d dtos.UploadFile) types.Response {
 	defer dbCancel()
 
 	filename := d.Filename + path.Ext(d.File.Filename)
+	var id int
 	dbErr := db.Pg.QueryRow(dbCtx, `--sql
-		INSERT INTO files (filename, file_id, hash_md5, content_type) VALUES ($1, $2, $3::UUID, $4);
-	`, filename, objectName.String(), info.ETag, contentType).Scan()
+		INSERT INTO files (filename, file_id, hash_md5, content_type, size) VALUES ($1, $2, $3::UUID, $4, $5) RETURNING id;
+	`, filename, objectName.String(), info.ETag, contentType, d.File.Size).Scan(&id)
 
 	//TODO: revert file insert
 	if dbErr != nil && dbErr != pgx.ErrNoRows {
@@ -65,7 +66,8 @@ func UploadFile(d dtos.UploadFile) types.Response {
 
 	r.Write(http.StatusCreated, jsonResponse.Json{
 		"message": "image created",
-		"id":      objectName,
+		"file_id": objectName,
+		"id":      id,
 	})
 	return r
 }

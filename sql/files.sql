@@ -3,5 +3,6 @@ CREATE TABLE IF NOT EXISTS files (
     filename text,
     content_type text,
     file_id UUID unique,
-    hash_md5 UUID
+    hash_md5 UUID,
+    size bigint
 );

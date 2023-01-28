@@ -6,4 +6,5 @@ type File struct {
 	FileId      string `json:"file_id,omitempty"`
 	HashMd5     string `json:"hash_md5,omitempty"`
 	ContentType string `json:"content_type,omitempty"`
+	Size        int64  `json:"size,omitempty"`
 }
