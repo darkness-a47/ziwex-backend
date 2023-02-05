@@ -327,7 +327,7 @@ func GetProductData(d dtos.GetProductData) types.Response {
 			r.Error(err)
 			return r
 		}
-		p.RecommendProducts = append(p.RelatedProducts, prec)
+		p.RecommendProducts = append(p.RecommendProducts, prec)
 	}
 
 	if err != nil {
