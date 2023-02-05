@@ -132,6 +132,7 @@ func CreateProduct(d dtos.CreateProduct) types.Response {
 	}
 	r.Write(http.StatusCreated, jsonResponse.Json{
 		"message": "ok",
+		"id":      productId,
 	})
 
 	go func() {
@@ -159,8 +160,7 @@ func GetProductsSummery(d dtos.GetProductsSummery) types.Response {
 				SELECT p.id, p.url, p.title, p.price, p.main_image_index, COUNT(*) OVER() AS total_rows
 				FROM products p
 				INNER JOIN product_categories pc ON pc.product_id = p.id
-				WHERE pc.category_id = $1
-				ORDER BY id DESC OFFSET $2 LIMIT $3
+				WHERE pc.category_id = $11
 			) prod
 			LEFT JOIN product_images pi ON pi.product_id = prod.id
 			LEFT JOIN files f ON f.id = pi.image_id
@@ -268,11 +268,11 @@ func GetProductData(d dtos.GetProductData) types.Response {
 				f.file_id
 			)
 		) AS images
-		FROM product_recommend_products precp
-			LEFT JOIN products p ON p.id = precp.recommend_product_id
+		FROM product_related_products prelp
+			LEFT JOIN products p ON p.id = prelp.related_product_id
 			LEFT JOIN product_images pi ON pi.product_id = p.id
 			LEFT JOIN files f ON f.id = pi.image_id
-		WHERE precp.product_id = $1
+		WHERE prelp.product_id = $1
 		GROUP BY p.id;
 	`, p.Id)
 

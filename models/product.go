@@ -17,5 +17,5 @@ type Product struct {
 	RecommendProducts   []Product         `json:"recommend_products,omitempty"`
 	Categories          []Category        `json:"categories,omitempty"`
 	Images              []File            `json:"images,omitempty"`
-	MainImageIndex      int               `json:"main_image_index,omitempty"`
+	MainImageIndex      *int              `json:"main_image_index,omitempty"`
 }
